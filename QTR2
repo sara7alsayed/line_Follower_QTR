@@ -1,0 +1,92 @@
+#include <QTRSensors.h>
+
+QTRSensors qtr;
+
+const uint8_t SensorCount = 6;
+uint16_t sensorValues[SensorCount];
+
+int lastError = 0;
+const float KP = 0.1; // Proportional gain constant
+const float KD = 5.0; // Derivative gain constant
+const int M1 = 200;   // Base speed for the left motor
+const int M2 = 200;   // Base speed for the right motor
+
+// Pin definitions for motor control
+const int motorLeftForwardPin = 3;
+const int motorRightForwardPin = 5;
+
+void setup()
+{
+  // configure the sensors
+  qtr.setTypeAnalog();
+  qtr.setSensorPins((const uint8_t[]){A0, A1, A2, A3, A4, A5}, SensorCount);
+  qtr.setEmitterPin(2);
+
+  delay(500);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH); // Calibration indicator
+
+  // Calibrate sensors
+  for (uint16_t i = 0; i < 400; i++)
+  {
+    qtr.calibrate();
+  }
+  digitalWrite(LED_BUILTIN, LOW); // End calibration indicator
+
+  // Print the calibration values
+  Serial.begin(9600);
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
+    Serial.print(qtr.calibrationOn.minimum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
+    Serial.print(qtr.calibrationOn.maximum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+  Serial.println();
+  delay(1000);
+
+  // Set motor control pins as outputs
+  pinMode(motorLeftForwardPin, OUTPUT);
+  pinMode(motorRightForwardPin, OUTPUT);
+}
+
+void loop()
+{
+  // Read line position
+  uint16_t position = qtr.readLineBlack(sensorValues);
+
+  // Calculate error from desired line position (2500 is the center)
+  int error = position - 2500;
+
+  // PD control calculation
+  int motorSpeed = KP * error + KD * (error - lastError);
+  lastError = error;
+
+  // Base motor speeds
+  int m1Speed = M1 + motorSpeed;
+  int m2Speed = M2 - motorSpeed;
+
+  // Limit motor speeds to be non-negative
+  m1Speed = max(m1Speed, 0);
+  m2Speed = max(m2Speed, 0);
+
+  // Control motors
+  analogWrite(motorLeftForwardPin, m1Speed);
+  analogWrite(motorRightForwardPin, m2Speed);
+
+  // Output sensor values and position for debugging
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
+    Serial.print(sensorValues[i]);
+    Serial.print('\t');
+  }
+  Serial.println(position);
+
+  delay(100);
+}
