@@ -1,0 +1,116 @@
+#include <QTRSensors.h>
+
+// Motor pins
+const int leftMotorForwardPin = 9;
+const int leftMotorBackwardPin = 10;
+const int rightMotorForwardPin = 11;
+const int rightMotorBackwardPin = 12;
+
+QTRSensors qtr;
+const uint8_t SensorCount = 6;
+uint16_t sensorValues[SensorCount];
+
+// Motor speed variables
+const int maxSpeed = 255; // Maximum motor speed
+const int baseSpeed = 150; // Base speed of the motors
+
+void setup()
+{
+  // Configure the sensors
+  qtr.setTypeAnalog();
+  qtr.setSensorPins((const uint8_t[]){A0, A1, A2, A3, A4, A5}, SensorCount);
+  qtr.setEmitterPin(2);
+
+  // Motor pins setup
+  pinMode(leftMotorForwardPin, OUTPUT);
+  pinMode(leftMotorBackwardPin, OUTPUT);
+  pinMode(rightMotorForwardPin, OUTPUT);
+  pinMode(rightMotorBackwardPin, OUTPUT);
+
+  delay(500);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH); // Calibration mode indicator
+
+  // Calibration
+  for (uint16_t i = 0; i < 400; i++)
+  {
+    qtr.calibrate();
+  }
+  digitalWrite(LED_BUILTIN, LOW); // End of calibration
+
+  // Serial monitor setup for debugging
+  Serial.begin(9600);
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
+    Serial.print(qtr.calibrationOn.minimum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
+    Serial.print(qtr.calibrationOn.maximum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+  Serial.println();
+  delay(1000);
+}
+
+void loop()
+{
+  // Read calibrated sensor values and get the line position from 0 to 5000
+  uint16_t position = qtr.readLineBlack(sensorValues);
+
+  // Calculate the error: position - 2500 (middle value)
+  int error = position - 2500;
+
+  // Proportional control for motor speed adjustment
+  int motorSpeedDifference = error / 10;
+
+  // Calculate motor speeds
+  int leftMotorSpeed = baseSpeed + motorSpeedDifference;
+  int rightMotorSpeed = baseSpeed - motorSpeedDifference;
+
+  // Ensure motor speeds are within the valid range
+  leftMotorSpeed = constrain(leftMotorSpeed, 0, maxSpeed);
+  rightMotorSpeed = constrain(rightMotorSpeed, 0, maxSpeed);
+
+  // Control the motors based on calculated speeds
+  setMotorSpeeds(leftMotorSpeed, rightMotorSpeed);
+
+  // Print sensor values and line position for debugging
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
+    Serial.print(sensorValues[i]);
+    Serial.print('\t');
+  }
+  Serial.println(position);
+  delay(250);
+}
+
+void setMotorSpeeds(int leftSpeed, int rightSpeed)
+{
+  // Left motor control
+  if (leftSpeed > 0)
+  {
+    analogWrite(leftMotorForwardPin, leftSpeed);
+    analogWrite(leftMotorBackwardPin, 0);
+  }
+  else
+  {
+    analogWrite(leftMotorForwardPin, 0);
+    analogWrite(leftMotorBackwardPin, -leftSpeed);
+  }
+
+  // Right motor control
+  if (rightSpeed > 0)
+  {
+    analogWrite(rightMotorForwardPin, rightSpeed);
+    analogWrite(rightMotorBackwardPin, 0);
+  }
+  else
+  {
+    analogWrite(rightMotorForwardPin, 0);
+    analogWrite(rightMotorBackwardPin, -rightSpeed);
+  }
+}
