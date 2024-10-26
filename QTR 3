@@ -1,0 +1,100 @@
+#include <QTRSensors.h>
+
+// QTR sensor configuration
+QTRSensors qtr;
+const uint8_t SensorCount = 6;
+uint16_t sensorValues[SensorCount];
+
+// Motor control pins
+const uint8_t leftMotorPin1 = 9;   // IN1 on motor driver for left motor
+const uint8_t leftMotorPin2 = 10;  // IN2 on motor driver for left motor
+const uint8_t rightMotorPin1 = 5;  // IN1 on motor driver for right motor
+const uint8_t rightMotorPin2 = 6;  // IN2 on motor driver for right motor
+
+void setup()
+{
+  // Configure the sensors
+  qtr.setTypeAnalog();
+  qtr.setSensorPins((const uint8_t[]){A0, A1, A2, A3, A4, A5}, SensorCount);
+  qtr.setEmitterPin(2);
+
+  // Motor pins setup
+  pinMode(leftMotorPin1, OUTPUT);
+  pinMode(leftMotorPin2, OUTPUT);
+  pinMode(rightMotorPin1, OUTPUT);
+  pinMode(rightMotorPin2, OUTPUT);
+
+  delay(500);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH); // Turn on Arduino's LED to indicate we are in calibration mode
+
+  // Calibrate sensors for about 10 seconds
+  for (uint16_t i = 0; i < 400; i++)
+  {
+    qtr.calibrate();
+  }
+  digitalWrite(LED_BUILTIN, LOW); // Turn off Arduino's LED to indicate we are done with calibration
+
+  // Begin serial communication for debugging
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  // Read calibrated sensor values and obtain the line position
+  uint16_t position = qtr.readLineBlack(sensorValues);
+
+  // Control motors based on the line position
+  if (position > 0 && position < 1000)
+  {
+    // Move toward left
+    moveLeft();
+  }
+  else if (position >= 1000 && position < 4000)
+  {
+    // Move forward
+    moveForward();
+  }
+  else if (position >= 4000 && position <= 5000)
+  {
+    // Move toward right
+    moveRight();
+  }
+
+  // Print the sensor values and position for debugging
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
+    Serial.print(sensorValues[i]);
+    Serial.print('\t');
+  }
+  Serial.println(position);
+
+  delay(250);
+}
+
+void moveLeft()
+{
+  // Turn left motor backward and right motor forward
+  digitalWrite(leftMotorPin1, LOW);
+  digitalWrite(leftMotorPin2, HIGH);
+  digitalWrite(rightMotorPin1, HIGH);
+  digitalWrite(rightMotorPin2, LOW);
+}
+
+void moveForward()
+{
+  // Both motors move forward
+  digitalWrite(leftMotorPin1, HIGH);
+  digitalWrite(leftMotorPin2, LOW);
+  digitalWrite(rightMotorPin1, HIGH);
+  digitalWrite(rightMotorPin2, LOW);
+}
+
+void moveRight()
+{
+  // Turn left motor forward and right motor backward
+  digitalWrite(leftMotorPin1, HIGH);
+  digitalWrite(leftMotorPin2, LOW);
+  digitalWrite(rightMotorPin1, LOW);
+  digitalWrite(rightMotorPin2, HIGH);
+}
